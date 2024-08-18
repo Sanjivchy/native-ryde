@@ -4,16 +4,43 @@ import InputField from "@/components/InputField";
 import { useCallback, useState } from "react";
 import { Link } from "expo-router";
 import CustomButton from "@/components/CustomButton";
+import OAuth from "@/components/oAuth";
+import { useSignUp } from "@clerk/clerk-expo";
+
 const SignUp = () => {
+  const { isLoaded, signUp, setActive } = useSignUp();
   const [form, setForm] = useState({
     email: "",
     name: "",
     password: "",
   });
 
+  const [verification, setVerification] = useState({
+    state: "default",
+    error: "",
+    code: "",
+  });
   const onSignUpPress = async () => {
-    console.log("onSignUpPress", form);
+    if (!isLoaded) {
+      return;
+    }
+    try {
+      await signUp.create({
+        emailAddress: form.email,
+        password: form.password,
+      });
+
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+
+      setVerification({
+        ...verification,
+        state: "pending",
+      });
+    } catch (err: any) {
+      console.error(JSON.stringify(err, null, 2));
+    }
   };
+
   return (
     <ScrollView className="sign-up flex-1 bg-white">
       <View className="sign-up__form flex-1 bg-white">
@@ -59,6 +86,7 @@ const SignUp = () => {
             className={"mt-6"}
           />
           {/* TODO: oAuth   */}
+          <OAuth />
           <Link
             href={"/sign-in"}
             className={"text-sm text-center text-general-200 mt-10"}
