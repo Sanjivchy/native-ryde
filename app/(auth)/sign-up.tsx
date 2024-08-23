@@ -1,14 +1,17 @@
-import { Text, ScrollView, View, Image } from "react-native";
+import { Text, ScrollView, View, Image, Alert } from "react-native";
 import { images, icons } from "@/constant";
 import InputField from "@/components/InputField";
-import { useCallback, useState } from "react";
-import { Link } from "expo-router";
+import { useState } from "react";
+import { Link, router } from "expo-router";
 import CustomButton from "@/components/CustomButton";
 import OAuth from "@/components/oAuth";
 import { useSignUp } from "@clerk/clerk-expo";
+import ReactNativeModal from "react-native-modal";
 
 const SignUp = () => {
   const { isLoaded, signUp, setActive } = useSignUp();
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   const [form, setForm] = useState({
     email: "",
     name: "",
@@ -37,7 +40,39 @@ const SignUp = () => {
         state: "pending",
       });
     } catch (err: any) {
-      console.error(JSON.stringify(err, null, 2));
+      Alert.alert("Error", err.errors[0].longMessage);
+    }
+  };
+
+  const onVerifyPress = async () => {
+    if (!isLoaded) return;
+    const completedSignUp = await signUp.attemptEmailAddressVerification({
+      code: verification.code,
+    });
+
+    try {
+      if (completedSignUp.status === "complete") {
+        // TODO: Create a database user
+        await setActive({
+          session: completedSignUp.createdSessionId,
+        });
+        setVerification({
+          ...verification,
+          state: "success",
+        });
+      } else {
+        setVerification({
+          ...verification,
+          state: "failed",
+          error: "Verification failed, please try again",
+        });
+      }
+    } catch (err: any) {
+      setVerification({
+        ...verification,
+        state: "failed",
+        error: err.errors[0].longMessage,
+      });
     }
   };
 
@@ -95,7 +130,61 @@ const SignUp = () => {
             <Text className={"text-primary-500"}>Login in</Text>
           </Link>
         </View>
-        {/*    verification modal*/}
+
+        <ReactNativeModal
+          isVisible={verification.state === "pending"}
+          onModalHide={() => {
+            if (verification.state === "success") {
+              setShowSuccessModal(true);
+            }
+          }}
+        >
+          <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
+            <Text className="text-2xl font-JakartaBold py-2">Verification</Text>
+            <Text>We have sent a verification code to {form.email}</Text>
+            <InputField
+              label={"Code"}
+              placeholder={"Enter verification code"}
+              icon={icons.lock}
+              value={verification.code}
+              keyboardType="numeric"
+              onChangeText={(value) =>
+                setVerification({ ...verification, code: value })
+              }
+            />
+            {verification.error && (
+              <Text className="text-red-500">{verification.error}</Text>
+            )}
+            <CustomButton
+              title={"Verify"}
+              onPress={onVerifyPress}
+              className={"mt-6"}
+            />
+          </View>
+        </ReactNativeModal>
+
+        <ReactNativeModal isVisible={showSuccessModal}>
+          <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
+            <Image
+              source={images.check}
+              className="w-[110px] h-[110px] mx-auto my-6"
+            />
+            <Text className="font-JakartaBold text-3xl text-center">
+              Verified
+            </Text>
+            <Text className="text-sm text-gray-400 py-2 text-center">
+              Account created successfully!!
+            </Text>
+            <CustomButton
+              title={"Continue"}
+              onPress={() => {
+                router.push("/(root)/(tabs)/home");
+                setShowSuccessModal(false);
+              }}
+              className={"mt-6"}
+            />
+          </View>
+        </ReactNativeModal>
       </View>
     </ScrollView>
   );
